@@ -6,17 +6,17 @@
 name: $(Build.SourceVersion)
 
 # Master build triggers
-trigger: 
+trigger:
 - master
 
 # PR Triggers
 pr:
   autoCancel: true
   branches:
-    include: 
+    include:
     - master
   paths:
-    exclude: 
+    exclude:
     - README.md
 
 jobs:
@@ -33,14 +33,14 @@ jobs:
   displayName: 'Hygiene Checks'
   timeoutInMinutes: 0
   pool:
-    vmImage: 'macOS 10.14'
+    vmImage: 'macOS-latest'
 
   variables:
     STAGING_DIRECTORY: $(Build.StagingDirectory)
     ESY__CACHE_INSTALL_PATH: /Users/runner/.esy/3__________________________________________________________________/i
     ESY__CACHE_BUILD_PATH: /Users/runner/.esy/3__________________________________________________________________/b
     ESY__CACHE_SOURCE_TARBALL_PATH: /Users/runner/.esy/source/i
-    MACOSX_DEPLOYMENT_TARGET: 10.12
+    # MACOSX_DEPLOYMENT_TARGET: 10.12
     CACHE_ARTIFACT_NAME: cache-$(Agent.OS)-install
     # ESY__NPM_ROOT: /usr/local/lib/node_modules/esy
 
@@ -56,73 +56,11 @@ jobs:
   - template: .ci/esy-check-hygiene.yml
   - template: .ci/publish-build-cache.yml
 
-- job: Linux
-  displayName: 'Linux - Ubuntu 18.04'
-  timeoutInMinutes: 90
-  pool:
-    vmImage: 'ubuntu-18.04'
-
-  variables:
-    STAGING_DIRECTORY: $(Build.StagingDirectory)
-    ESY__CACHE_INSTALL_PATH: /home/vsts/.esy/3_____________________________________________________________________/i
-    ESY__CACHE_BUILD_PATH: /home/vsts/.esy/3_____________________________________________________________________/b
-    ESY__CACHE_SOURCE_TARBALL_PATH: /home/vsts/.esy/source/i
-    CACHE_ARTIFACT_NAME: cache-$(Agent.OS)-install
-    DISPLAY: :99
-    # ESY__NPM_ROOT: /opt/hostedtoolcache/node/8.14.0/x64/lib/node_modules/esy
-
-  steps:
-  - template: .ci/clean-linux-deps.yml
-  - template: .ci/restore-build-cache.yml
-  - template: .ci/use-node.yml
-  - script: sudo apt-get update
-  - script: sudo apt-get install -y libncurses5-dev libacl1-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev libgl1-mesa-dev libglu1-mesa-dev mesa-utils mesa-utils-extra ragel libgtk-3-dev nasm xvfb
-  - template: .ci/run-xvfb.yml
-  - template: .ci/js-build-steps.yml
-  - template: .ci/use-esy.yml
-  - template: .ci/esy-build-steps.yml
-  - template: .ci/run-integration-tests.yml
-  - script: rm -rf _esy
-    displayName: 'Delete Onivim 2 local _esy folder prior to cache'
-  - template: .ci/publish-build-cache.yml
-
-- job: CentOS
-  displayName: 'Linux - CentOS - Docker Image'
-  timeoutInMinutes: 120
-  pool:
-    vmImage: 'ubuntu-16.04'
-
-  variables:
-    STAGING_DIRECTORY: $(Build.StagingDirectory)
-    ESY__CACHE_INSTALL_PATH: /home/vsts/.esy/3__________________________________________________________________________/i
-    ESY__CACHE_BUILD_PATH: /home/vsts/.esy/3__________________________________________________________________________/b
-    ESY__CACHE_SOURCE_TARBALL_PATH: /home/vsts/.esy/source/i
-    CACHE_ARTIFACT_NAME: cache-$(Agent.OS)-CentOS-docker-install
-    # ESY__NPM_ROOT: /opt/hostedtoolcache/node/8.14.0/x64/lib/node_modules/esy
-
-  steps:
-  - template: .ci/clean-linux-deps.yml
-  - template: .ci/restore-build-cache.yml
-  - script: docker build --network=host -t centos scripts/docker/centos
-    displayName: 'docker: build Dockerfile'
-  - script: docker container run --rm --volume `pwd`:/oni2 centos /bin/bash -c 'cd oni2 && git --version'
-    displayName: 'docker: git version (after updating)'
-  - script: docker container run --rm --volume `pwd`:/oni2 --volume ~/.esy:/esy/store --name centos --network=host --cap-add SYS_ADMIN --device /dev/fuse --security-opt apparmor:unconfined centos /bin/bash -c 'cd oni2 && ./scripts/docker-build.sh'
-    displayName: 'docker: build Onivim 2'
-  - script: ls ~/.esy
-    displayName: 'Check esy root path'
-  - script: ls $(ESY__CACHE_INSTALL_PATH)
-    displayName: 'Check esy cache install path after build'
-  - script: _release/Onivim2.AppDir/usr/bin/Oni2 -f --no-log-colors --checkhealth
-    displayName: 'Release: --checkhealth'
-  - template: .ci/publish-linux.yml
-  - template: .ci/publish-build-cache.yml
-
 - job: MacOS
-  displayName: "MacOS 10.14"
+  displayName: "MacOS Latest"
   timeoutInMinutes: 0
   pool:
-    vmImage: 'macOS 10.14'
+    vmImage: 'macOS-latest'
 
   variables:
     STAGING_DIRECTORY: $(Build.StagingDirectory)
@@ -154,122 +92,13 @@ jobs:
   - template: .ci/publish-osx.yml
   - template: .ci/publish-build-cache.yml
 
-- job: Windows
-  timeoutInMinutes: 180
-  displayName: "Windows - Build & Package"
-  pool:
-    vmImage: 'vs2017-win2016'
-
-  variables:
-    STAGING_DIRECTORY: $(Build.StagingDirectory)
-    ESY__CACHE_INSTALL_PATH: /C/Users/VssAdministrator/.esy/3______________________________________________________/i
-    ESY__CACHE_BUILD_PATH: /C/Users/VssAdministrator/.esy/3______________________________________________________/b
-    ESY__CACHE_SOURCE_TARBALL_PATH: /C/Users/VssAdministrator/.esy/source/i
-    CACHE_ARTIFACT_NAME: cache-$(Agent.OS)-install
-    # ESY__NPM_ROOT: /C/npm/prefix/node_modules/esy
-
-  steps:
-  - template: .ci/clean-windows-deps.yml
-  - template: .ci/use-node.yml
-  - powershell: ./scripts/windows/verify-signtool.ps1
-    displayName: 'Validate signtool path'
-  - template: .ci/restore-build-cache.yml
-  - template: .ci/js-build-steps.yml
-  - template: .ci/use-esy.yml
-  - template: .ci/esy-build-steps.yml
-    parameters:
-      platform: windows
-  - script: dir
-    workingDirectory: _release/win32
-    displayName: 'check directory contents'
-  - template: .ci/publish-win.yml
-  - template: .ci/publish-build-cache.yml
-
-- job: WindowsTest
-  timeoutInMinutes: 150
-  displayName: "Windows - Integration Test"
-  # Run if not master
-  condition: and(succeeded(), ne(variables['Build.SourceBranch'], 'refs/heads/master'))
-  pool:
-    vmImage: 'vs2017-win2016'
-
-  variables:
-    STAGING_DIRECTORY: $(Build.StagingDirectory)
-    ESY__CACHE_INSTALL_PATH: /C/Users/VssAdministrator/.esy/3______________________________________________________/i
-    ESY__CACHE_BUILD_PATH: /C/Users/VssAdministrator/.esy/3______________________________________________________/b
-    ESY__CACHE_SOURCE_TARBALL_PATH: /C/Users/VssAdministrator/.esy/source/i
-    CACHE_ARTIFACT_NAME: cache-$(Agent.OS)-install
-    # ESY__NPM_ROOT: /C/npm/prefix/node_modules/esy
-
-  steps:
-  - template: .ci/clean-windows-deps.yml
-  - template: .ci/use-node.yml
-  - template: .ci/restore-build-cache.yml
-  - template: .ci/js-build-steps.yml
-  - template: .ci/use-esy.yml
-  - template: .ci/run-integration-tests.yml
-    parameters:
-      platform: windows
-
-- job: ValidateLinuxReleaseUbuntu16
-  displayName: "Linux: Validate Release (Ubuntu 16.04)"
-  dependsOn: 
-  - Kickoff
-  - CentOS
-  pool:
-    vmImage: 'ubuntu-16.04'
-  variables:
-    ONI2_SHORT_COMMIT_ID: $[dependencies.Kickoff.outputs['shortCommitVariableStep.ONI2_SHORT_COMMIT_ID'] ]
-
-  steps:
-  - script: echo $(ONI2_SHORT_COMMIT_ID)
-  - script: 'echo ArtifactDir: $(System.ArtifactsDirectory)'
-    displayName: 'Echo artifact dir'
-  - task: DownloadBuildArtifacts@0
-    inputs: 
-      buildType: 'current'
-      downloadType: 'single'
-      artifactName: 'Release_Linux'
-      downloadPath: '$(System.ArtifactsDirectory)'
-  - script: ./scripts/linux/validate-release.sh
-    env:
-      SYSTEM_ARTIFACTSDIRECTORY: $(System.ArtifactsDirectory)
-
-- job: ValidateLinuxReleaseUbuntu18
-  displayName: "Linux: Validate Release (Ubuntu 18.04)"
-  dependsOn: 
-  - Kickoff
-  - CentOS
-  pool:
-    vmImage: 'ubuntu-18.04'
-  variables:
-    ONI2_SHORT_COMMIT_ID: $[dependencies.Kickoff.outputs['shortCommitVariableStep.ONI2_SHORT_COMMIT_ID'] ]
-
-  steps:
-  - script: echo $(ONI2_SHORT_COMMIT_ID)
-  - script: 'echo ArtifactDir: $(System.ArtifactsDirectory)'
-    displayName: 'Echo artifact dir'
-  - script: sudo apt-get update
-    displayName: 'sudo apt-get update'
-  - script: sudo apt-get install libegl1-mesa
-    displayName: 'Install dependencies'
-  - task: DownloadBuildArtifacts@0
-    inputs: 
-      buildType: 'current'
-      downloadType: 'single'
-      artifactName: 'Release_Linux'
-      downloadPath: '$(System.ArtifactsDirectory)'
-  - script: ./scripts/linux/validate-release.sh
-    env:
-      SYSTEM_ARTIFACTSDIRECTORY: $(System.ArtifactsDirectory)
-
-- job: ValidateMacOSRelease14
-  displayName: "MacOS: Validate Release (10.14)"
-  dependsOn: 
+- job: ValidateMacOSReleaseLatest
+  displayName: "MacOS: Validate Latest Release"
+  dependsOn:
   - Kickoff
   - MacOS
   pool:
-    vmImage: 'macOS-10.14'
+    vmImage: 'macOS-latest'
   variables:
     ONI2_SHORT_COMMIT_ID: $[dependencies.Kickoff.outputs['shortCommitVariableStep.ONI2_SHORT_COMMIT_ID'] ]
 
@@ -278,7 +107,7 @@ jobs:
   - script: 'echo ArtifactDir: $(System.ArtifactsDirectory)'
     displayName: 'Echo artifact dir'
   - task: DownloadBuildArtifacts@0
-    inputs: 
+    inputs:
       buildType: 'current'
       downloadType: 'single'
       artifactName: 'Release_Darwin'
@@ -286,59 +115,3 @@ jobs:
   - script: ./scripts/osx/validate-release.sh
     env:
       SYSTEM_ARTIFACTSDIRECTORY: $(System.ArtifactsDirectory)
-
-- job: ValidateMacOSRelease15
-  displayName: "MacOS: Validate Release (10.15)"
-  dependsOn: 
-  - Kickoff
-  - MacOS
-  pool:
-    vmImage: 'macOS-10.15'
-  variables:
-    ONI2_SHORT_COMMIT_ID: $[dependencies.Kickoff.outputs['shortCommitVariableStep.ONI2_SHORT_COMMIT_ID'] ]
-
-  steps:
-  - script: echo $(ONI2_SHORT_COMMIT_ID)
-  - script: 'echo ArtifactDir: $(System.ArtifactsDirectory)'
-    displayName: 'Echo artifact dir'
-  - task: DownloadBuildArtifacts@0
-    inputs: 
-      buildType: 'current'
-      downloadType: 'single'
-      artifactName: 'Release_Darwin'
-      downloadPath: '$(System.ArtifactsDirectory)'
-  - script: ./scripts/osx/validate-release.sh
-    env:
-      SYSTEM_ARTIFACTSDIRECTORY: $(System.ArtifactsDirectory)
-
-- job: ValidateWindowsRelease
-  timeoutInMinutes: 30
-  displayName: "Windows: Validate Release"
-  dependsOn: 
-  - Kickoff
-  - Windows
-  pool:
-    vmImage: 'vs2017-win2016'
-  variables:
-    ONI2_SHORT_COMMIT_ID: $[dependencies.Kickoff.outputs['shortCommitVariableStep.ONI2_SHORT_COMMIT_ID'] ]
-
-  steps:
-  - script: echo $(ONI2_SHORT_COMMIT_ID)
-  - script: 'echo ArtifactDir: $(System.ArtifactsDirectory)'
-    displayName: 'Echo artifact dir'
-  - task: DownloadBuildArtifacts@0
-    inputs: 
-      buildType: 'current'
-      downloadType: 'single'
-      artifactName: 'Release_Windows'
-      downloadPath: '$(System.ArtifactsDirectory)'
-  - powershell: ./scripts/windows/validate-release.ps1
-    env:
-      SYSTEM_ARTIFACTSDIRECTORY: $(System.ArtifactsDirectory)
-  - script: echo %PATH%
-  # The validate-release.ps1 installs Onivim 2 and checks it,
-  # but we need to check from the command prompt, too via %PATH% - for #872
-  - script: |
-      set PATH=%PATH%;D:/a/1/s/Onivim2
-      Oni2.exe -f --silent --checkhealth
-    displayName: "Oni2.exe -f --silent --checkhealth (run installed)"
